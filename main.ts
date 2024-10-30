@@ -382,8 +382,6 @@ export default class ChatGPT_MD extends Plugin {
 
 		const streamManager = new StreamManager();
 
-		
-
 		// call-chatgpt-api
 		this.addCommand({
 			id: "call-chatgpt-api",
