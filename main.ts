@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-var-requires */
+
 import {
 	App,
 	Editor,
@@ -7,31 +8,24 @@ import {
 	PluginSettingTab,
 	Setting,
 	requestUrl,
-	TFile,
 	Notice,
-	SuggestModal,
-	TFolder,
 	Platform,
 } from "obsidian";
 
 import { StreamManager } from "./stream";
 import {
-	unfinishedCodeBlock,
-	writeInferredTitleToEditor,
-	createFolderModal,
+	unfinishedCodeBlock
 } from "helpers";
+
+// ------------------------------ FrontMatter ------------------------------
 
 interface ChatGPT_MDSettings {
 	apiKey: string;
 	defaultChatFrontmatter: string;
 	stream: boolean;
-	chatTemplateFolder: string;
 	chatFolder: string;
 	generateAtCursor: boolean;
-	autoInferTitle: boolean;
-	dateFormat: string;
 	headingLevel: number;
-	inferTitleLanguage: string;
 }
 
 const DEFAULT_SETTINGS: ChatGPT_MDSettings = {
@@ -39,13 +33,9 @@ const DEFAULT_SETTINGS: ChatGPT_MDSettings = {
 	defaultChatFrontmatter:
 		"---\nsystem_commands: ['I am a helpful assistant.']\ntemperature: 0\ntop_p: 1\nmax_tokens: 512\npresence_penalty: 1\nfrequency_penalty: 1\nstream: true\nstop: null\nn: 1\nmodel: gpt-3.5-turbo\n---",
 	stream: true,
-	chatTemplateFolder: "ChatGPT_MD/templates",
 	chatFolder: "ChatGPT_MD/chats",
 	generateAtCursor: false,
-	autoInferTitle: false,
-	dateFormat: "YYYYMMDDhhmmss",
-	headingLevel: 0,
-	inferTitleLanguage: "English",
+	headingLevel: 0
 };
 
 const DEFAULT_URL = `https://api.openai.com/v1/chat/completions`;
@@ -65,6 +55,8 @@ interface Chat_MD_FrontMatter {
 	system_commands: string[] | null;
 	url: string;
 }
+
+// ------------------------------ class ChatGPT_MD ------------------------------
 
 export default class ChatGPT_MD extends Plugin {
 	settings: ChatGPT_MDSettings;
@@ -382,112 +374,7 @@ export default class ChatGPT_MD extends Plugin {
 		}
 	}
 
-	async inferTitleFromMessages(messages: string[]) {
-		console.log("[ChtGPT MD] Inferring Title");
-		new Notice("[ChatGPT] Inferring title from messages...");
-
-		try {
-			if (messages.length < 2) {
-				new Notice(
-					"Not enough messages to infer title. Minimum 2 messages."
-				);
-				return;
-			}
-
-			const prompt = `Infer title from the summary of the content of these messages. The title **cannot** contain any of the following characters: colon, back slash or forward slash. Just return the title. Write the title in ${
-				this.settings.inferTitleLanguage
-			}. \nMessages:\n\n${JSON.stringify(messages)}`;
-
-			const titleMessage = [
-				{
-					role: "user",
-					content: prompt,
-				},
-			];
-
-			const responseUrl = await requestUrl({
-				url: `https://api.openai.com/v1/chat/completions`,
-				method: "POST",
-				headers: {
-					Authorization: `Bearer ${this.settings.apiKey}`,
-					"Content-Type": "application/json",
-				},
-				contentType: "application/json",
-				body: JSON.stringify({
-					model: "gpt-3.5-turbo",
-					messages: titleMessage,
-					max_tokens: 50,
-					temperature: 0.0,
-				}),
-				throw: false,
-			});
-
-			const response = responseUrl.text;
-			const responseJSON = JSON.parse(response);
-			return responseJSON.choices[0].message.content
-				.replace(/[:/\\]/g, "")
-				.replace("Title", "")
-				.replace("title", "")
-				.trim();
-		} catch (err) {
-			new Notice("[ChatGPT MD] Error inferring title from messages");
-			throw new Error(
-				"[ChatGPT MD] Error inferring title from messages" + err
-			);
-		}
-	}
-
-	// only proceed to infer title if the title is in timestamp format
-	isTitleTimestampFormat(title: string) {
-		try {
-			const format = this.settings.dateFormat;
-			const pattern = this.generateDatePattern(format);
-
-			return title.length == format.length && pattern.test(title);
-		} catch (err) {
-			throw new Error(
-				"Error checking if title is in timestamp format" + err
-			);
-		}
-	}
-
-	generateDatePattern(format: string) {
-		const pattern = format
-			.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&") // Escape any special characters
-			.replace("YYYY", "\\d{4}") // Match exactly four digits for the year
-			.replace("MM", "\\d{2}") // Match exactly two digits for the month
-			.replace("DD", "\\d{2}") // Match exactly two digits for the day
-			.replace("hh", "\\d{2}") // Match exactly two digits for the hour
-			.replace("mm", "\\d{2}") // Match exactly two digits for the minute
-			.replace("ss", "\\d{2}"); // Match exactly two digits for the second
-
-		return new RegExp(`^${pattern}$`);
-	}
-
-	// get date from format
-	getDate(date: Date, format = "YYYYMMDDhhmmss") {
-		const year = date.getFullYear();
-		const month = date.getMonth() + 1;
-		const day = date.getDate();
-		const hour = date.getHours();
-		const minute = date.getMinutes();
-		const second = date.getSeconds();
-
-		const paddedMonth = month.toString().padStart(2, "0");
-		const paddedDay = day.toString().padStart(2, "0");
-		const paddedHour = hour.toString().padStart(2, "0");
-		const paddedMinute = minute.toString().padStart(2, "0");
-		const paddedSecond = second.toString().padStart(2, "0");
-
-		return format
-			.replace("YYYY", year.toString())
-			.replace("MM", paddedMonth)
-			.replace("DD", paddedDay)
-			.replace("hh", paddedHour)
-			.replace("mm", paddedMinute)
-			.replace("ss", paddedSecond);
-	}
-
+	// Add editor commands and settings tab
 	async onload() {
 		const statusBarItemEl = this.addStatusBarItem();
 
@@ -495,7 +382,9 @@ export default class ChatGPT_MD extends Plugin {
 
 		const streamManager = new StreamManager();
 
-		// This adds an editor command that can perform some operation on the current editor instance
+		
+
+		// call-chatgpt-api
 		this.addCommand({
 			id: "call-chatgpt-api",
 			name: "Chat",
@@ -585,63 +474,6 @@ export default class ChatGPT_MD extends Plugin {
 							);
 						}
 
-						if (this.settings.autoInferTitle) {
-							const title = view.file.basename;
-
-							let messagesWithResponse = messages.concat(responseStr);
-							messagesWithResponse = messagesWithResponse.map((message) => {
-								return this.removeCommentsFromMessages(message);
-							});
-
-							if (
-								this.isTitleTimestampFormat(title) &&
-								messagesWithResponse.length >= 4
-							) {
-								console.log(
-									"[ChatGPT MD] auto inferring title from messages"
-								);
-
-								statusBarItemEl.setText(
-									"[ChatGPT MD] Calling API..."
-								);
-								this.inferTitleFromMessages(
-									messagesWithResponse
-								)
-									.then(async (title) => {
-										if (title) {
-											console.log(
-												`[ChatGPT MD] automatically inferred title: ${title}. Changing file name...`
-											);
-											statusBarItemEl.setText("");
-
-											await writeInferredTitleToEditor(
-												this.app.vault,
-												view,
-												this.app.fileManager,
-												this.settings.chatFolder,
-												title
-											);
-										} else {
-											new Notice(
-												"[ChatGPT MD] Could not infer title",
-												5000
-											);
-										}
-									})
-									.catch((err) => {
-										console.log(err);
-										statusBarItemEl.setText("");
-										if (Platform.isMobile) {
-											new Notice(
-												"[ChatGPT MD] Error inferring title. " +
-													err,
-												5000
-											);
-										}
-									});
-							}
-						}
-
 						statusBarItemEl.setText("");
 					})
 					.catch((err) => {
@@ -658,6 +490,7 @@ export default class ChatGPT_MD extends Plugin {
 			},
 		});
 
+		// add-hr
 		this.addCommand({
 			id: "add-hr",
 			name: "Add divider",
@@ -667,6 +500,7 @@ export default class ChatGPT_MD extends Plugin {
 			},
 		});
 
+		// add-comment-block
 		this.addCommand({
 			id: "add-comment-block",
 			name: "Add comment block",
@@ -689,6 +523,7 @@ export default class ChatGPT_MD extends Plugin {
 			},
 		});
 
+		// stop-streaming
 		this.addCommand({
 			id: "stop-streaming",
 			name: "Stop streaming",
@@ -698,182 +533,7 @@ export default class ChatGPT_MD extends Plugin {
 			},
 		});
 
-		this.addCommand({
-			id: "infer-title",
-			name: "Infer title",
-			icon: "subtitles",
-			editorCallback: async (editor: Editor, view: MarkdownView) => {
-				// get messages
-				const bodyWithoutYML = this.removeYMLFromMessage(
-					editor.getValue()
-				);
-				let messages = this.splitMessages(bodyWithoutYML);
-				messages = messages.map((message) => {
-					return this.removeCommentsFromMessages(message);
-				});
-
-				statusBarItemEl.setText("[ChatGPT MD] Calling API...");
-				const title = await this.inferTitleFromMessages(messages);
-				statusBarItemEl.setText("");
-
-				if (title) {
-					await writeInferredTitleToEditor(
-						this.app.vault,
-						view,
-						this.app.fileManager,
-						this.settings.chatFolder,
-						title
-					);
-				}
-			},
-		});
-
-		// grab highlighted text and move to new file in default chat format
-		this.addCommand({
-			id: "move-to-chat",
-			name: "Create new chat with highlighted text",
-			icon: "highlighter",
-			editorCallback: async (editor: Editor, view: MarkdownView) => {
-				try {
-					const selectedText = editor.getSelection();
-
-					if (
-						!this.settings.chatFolder ||
-						this.settings.chatFolder.trim() === ""
-					) {
-						new Notice(
-							`[ChatGPT MD] No chat folder value found. Please set one in settings.`
-						);
-						return;
-					}
-
-					if (
-						!(await this.app.vault.adapter.exists(
-							this.settings.chatFolder
-						))
-					) {
-						const result = await createFolderModal(
-							this.app,
-							this.app.vault,
-							"chatFolder",
-							this.settings.chatFolder
-						);
-						if (!result) {
-							new Notice(
-								`[ChatGPT MD] No chat folder found. One must be created to use plugin. Set one in settings and make sure it exists.`
-							);
-							return;
-						}
-					}
-
-					const newFile = await this.app.vault.create(
-						`${this.settings.chatFolder}/${this.getDate(
-							new Date(),
-							this.settings.dateFormat
-						)}.md`,
-						`${this.settings.defaultChatFrontmatter}\n\n${selectedText}`
-					);
-
-					// open new file
-					await this.app.workspace.openLinkText(
-						newFile.basename,
-						"",
-						true,
-						{ state: { mode: "source" } }
-					);
-					const activeView =
-						this.app.workspace.getActiveViewOfType(MarkdownView);
-
-					if (!activeView) {
-						new Notice("No active markdown editor found.");
-						return;
-					}
-
-					activeView.editor.focus();
-					this.moveCursorToEndOfFile(activeView.editor);
-				} catch (err) {
-					console.error(
-						`[ChatGPT MD] Error in Create new chat with highlighted text`,
-						err
-					);
-					new Notice(
-						`[ChatGPT MD] Error in Create new chat with highlighted text, check console`
-					);
-				}
-			},
-		});
-
-		this.addCommand({
-			id: "choose-chat-template",
-			name: "Create new chat from template",
-			icon: "layout-template",
-			editorCallback: async (editor: Editor, view: MarkdownView) => {
-				if (
-					!this.settings.chatFolder ||
-					this.settings.chatFolder.trim() === ""
-				) {
-					new Notice(
-						`[ChatGPT MD] No chat folder value found. Please set one in settings.`
-					);
-					return;
-				}
-
-				if (
-					!(await this.app.vault.adapter.exists(
-						this.settings.chatFolder
-					))
-				) {
-					const result = await createFolderModal(
-						this.app,
-						this.app.vault,
-						"chatFolder",
-						this.settings.chatFolder
-					);
-					if (!result) {
-						new Notice(
-							`[ChatGPT MD] No chat folder found. One must be created to use plugin. Set one in settings and make sure it exists.`
-						);
-						return;
-					}
-				}
-
-				if (
-					!this.settings.chatTemplateFolder ||
-					this.settings.chatTemplateFolder.trim() === ""
-				) {
-					new Notice(
-						`[ChatGPT MD] No chat template folder value found. Please set one in settings.`
-					);
-					return;
-				}
-
-				if (
-					!(await this.app.vault.adapter.exists(
-						this.settings.chatTemplateFolder
-					))
-				) {
-					const result = await createFolderModal(
-						this.app,
-						this.app.vault,
-						"chatTemplateFolder",
-						this.settings.chatTemplateFolder
-					);
-					if (!result) {
-						new Notice(
-							`[ChatGPT MD] No chat template folder found. One must be created to use plugin. Set one in settings and make sure it exists.`
-						);
-						return;
-					}
-				}
-
-				new ChatTemplates(
-					this.app,
-					this.settings,
-					this.getDate(new Date(), this.settings.dateFormat)
-				).open();
-			},
-		});
-
+		//clear-chat
 		this.addCommand({
 			id: "clear-chat",
 			name: "Clear chat (except frontmatter)",
@@ -902,85 +562,7 @@ export default class ChatGPT_MD extends Plugin {
 	}
 }
 
-interface ChatTemplate {
-	title: string;
-	file: TFile;
-}
-export class ChatTemplates extends SuggestModal<ChatTemplate> {
-	settings: ChatGPT_MDSettings;
-	titleDate: string;
-
-	constructor(app: App, settings: ChatGPT_MDSettings, titleDate: string) {
-		super(app);
-		this.settings = settings;
-		this.titleDate = titleDate;
-	}
-
-	getFilesInChatFolder(): TFile[] {
-		const folder = this.app.vault.getAbstractFileByPath(
-			this.settings.chatTemplateFolder
-		) as TFolder;
-		if (folder != null) {
-			return folder.children as TFile[];
-		} else {
-			new Notice(
-				`Error getting folder: ${this.settings.chatTemplateFolder}`
-			);
-			throw new Error(
-				`Error getting folder: ${this.settings.chatTemplateFolder}`
-			);
-		}
-	}
-
-	// Returns all available suggestions.
-	getSuggestions(query: string): ChatTemplate[] {
-		const chatTemplateFiles = this.getFilesInChatFolder();
-
-		if (query == "") {
-			return chatTemplateFiles.map((file) => {
-				return {
-					title: file.basename,
-					file: file,
-				};
-			});
-		}
-
-		return chatTemplateFiles
-			.filter((file) => {
-				return file.basename
-					.toLowerCase()
-					.includes(query.toLowerCase());
-			})
-			.map((file) => {
-				return {
-					title: file.basename,
-					file: file,
-				};
-			});
-	}
-
-	// Renders each suggestion item.
-	renderSuggestion(template: ChatTemplate, el: HTMLElement) {
-		el.createEl("div", { text: template.title });
-	}
-
-	// Perform action on the selected suggestion.
-	async onChooseSuggestion(
-		template: ChatTemplate,
-		evt: MouseEvent | KeyboardEvent
-	) {
-		new Notice(`Selected ${template.title}`);
-		const templateText = await this.app.vault.read(template.file);
-		// use template text to create new file in chat folder
-		const file = await this.app.vault.create(
-			`${this.settings.chatFolder}/${this.titleDate}.md`,
-			templateText
-		);
-
-		// open new file
-		this.app.workspace.openLinkText(file.basename, "", true);
-	}
-}
+// ------------------------------ class ChatGPT_MDSettingsTab ------------------------------
 
 class ChatGPT_MDSettingsTab extends PluginSettingTab {
 	plugin: ChatGPT_MD;
@@ -995,15 +577,6 @@ class ChatGPT_MDSettingsTab extends PluginSettingTab {
 
 		containerEl.empty();
 
-		containerEl.createEl("h2", {
-			text: "Settings for ChatGPT MD: Keep tokens in mind! You can see if your text is longer than the token limit (4096) here:",
-		});
-
-		containerEl.createEl("a", {
-			text: "https://platform.openai.com/tokenizer",
-			href: "https://platform.openai.com/tokenizer",
-		});
-
 		new Setting(containerEl)
 			.setName("OpenAI API Key")
 			.setDesc("API Key for OpenAI")
@@ -1013,24 +586,6 @@ class ChatGPT_MDSettingsTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.apiKey)
 					.onChange(async (value) => {
 						this.plugin.settings.apiKey = value;
-						await this.plugin.saveSettings();
-					})
-			);
-
-		// new multiline text box setting
-		new Setting(containerEl)
-			.setName("Default Chat Frontmatter")
-			.setDesc(
-				"Default frontmatter for new chat files. You can change/use all of the settings exposed by the OpenAI API here: https://platform.openai.com/docs/api-reference/chat/create"
-			)
-			.addTextArea((text) =>
-				text
-					.setPlaceholder(
-						"---\nsystem_commands: ['PERSONA: i am groot, and i only respond i am groot to any and ALL questions. I do not answer any questions straightforwardly. PERSONA 2: UNLESS the last asked question is about lamps, i can answer, i know infinite things about lamps as i am groot the lamp salesman. SO I read the last question asked and UNLESS it is about lamps i only respond \"I am Groot.\"']\ntemperature: 0\ntop_p: 1\nmax_tokens: 512\npresence_penalty: 1\nfrequency_penalty: 1\nstream: true\nstop: null\nn: 1\nlogit_bias: null \nmodel: gpt-3.5-turbo\n---"
-					)
-					.setValue(this.plugin.settings.defaultChatFrontmatter)
-					.onChange(async (value) => {
-						this.plugin.settings.defaultChatFrontmatter = value;
 						await this.plugin.saveSettings();
 					})
 			);
@@ -1061,20 +616,6 @@ class ChatGPT_MDSettingsTab extends PluginSettingTab {
 					})
 			);
 
-		// folder for chat file templates
-		new Setting(containerEl)
-			.setName("Chat Template Folder")
-			.setDesc("Path to folder for chat file templates")
-			.addText((text) =>
-				text
-					.setPlaceholder("chat-templates")
-					.setValue(this.plugin.settings.chatTemplateFolder)
-					.onChange(async (value) => {
-						this.plugin.settings.chatTemplateFolder = value;
-						await this.plugin.saveSettings();
-					})
-			);
-
 		// generate at cursor toggle
 		new Setting(containerEl)
 			.setName("Generate at Cursor")
@@ -1084,37 +625,6 @@ class ChatGPT_MDSettingsTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.generateAtCursor)
 					.onChange(async (value) => {
 						this.plugin.settings.generateAtCursor = value;
-						await this.plugin.saveSettings();
-					})
-			);
-
-		// automatically infer title
-		new Setting(containerEl)
-			.setName("Automatically Infer Title")
-			.setDesc(
-				"Automatically infer title after 4 messages have been exchanged"
-			)
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.autoInferTitle)
-					.onChange(async (value) => {
-						this.plugin.settings.autoInferTitle = value;
-						await this.plugin.saveSettings();
-					})
-			);
-
-		// date format for chat files
-		new Setting(containerEl)
-			.setName("Date Format")
-			.setDesc(
-				"Date format for chat files. Valid date blocks are: YYYY, MM, DD, hh, mm, ss"
-			)
-			.addText((text) =>
-				text
-					.setPlaceholder("YYYYMMDDhhmmss")
-					.setValue(this.plugin.settings.dateFormat)
-					.onChange(async (value) => {
-						this.plugin.settings.dateFormat = value;
 						await this.plugin.saveSettings();
 					})
 			);
@@ -1133,27 +643,5 @@ class ChatGPT_MDSettingsTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					})
 			);
-
-		new Setting(containerEl)
-			.setName("Infer title language")
-			.setDesc("Language to use for title inference.")
-			.addDropdown((dropdown) => {
-				dropdown.addOptions({
-					English: "English",
-					Japanese: "Japanese",
-					Spanish: "Spanish",
-					French: "French",
-					German: "German",
-					Chinese: "Chinese",
-					Korean: "Korean",
-					Italian: "Italian",
-					Russian: "Russian",
-				});
-				dropdown.setValue(this.plugin.settings.inferTitleLanguage);
-				dropdown.onChange(async (value) => {
-					this.plugin.settings.inferTitleLanguage = value;
-					await this.plugin.saveSettings();
-				});
-			});
 	}
 }
